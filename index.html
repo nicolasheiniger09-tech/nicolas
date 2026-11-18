@@ -125,7 +125,8 @@
   input[type="range"] { accent-color: var(--accent); }
 
   /* Sidebar */
-  .sidebar { padding: 14px; display: flex; flex-direction: column; gap: 12px; max-height: calc(100vh - 110px); position: sticky; top: 20px; }
+  .sidebar { padding: 14px; display: flex; flex-direction: column; gap: 12px; align-self: start; }
+  #clipList { max-height: 420px; }
   .sidebar h3 { margin: 0; font-size: 16px; display: flex; align-items: center; justify-content: space-between; }
   .count { background: var(--panel-2); color: var(--muted); border-radius: 999px; padding: 1px 9px; font-size: 12px; }
   #clipList { list-style: none; margin: 0; padding: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; flex: 1; }
@@ -158,6 +159,35 @@
     opacity: 0; transition: .2s; pointer-events: none; z-index: 10; max-width: calc(100% - 32px);
   }
   .toast.show { opacity: 1; transform: translateX(-50%); }
+
+  /* KI-Schnitt */
+  .ai-box {
+    margin-top: 14px; padding: 14px; border-radius: 10px;
+    background: linear-gradient(135deg, rgba(255,77,109,.10), rgba(140,90,255,.10));
+    border: 1px solid rgba(255,77,109,.35);
+  }
+  .ai-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 10px; }
+  .ai-badge { font-weight: 700; font-size: 16px; }
+  .ai-sub { color: var(--muted); font-size: 13px; }
+  .ai-opts { margin-top: 10px; padding-top: 0; border-top: none; align-items: flex-end; }
+  .ai-run { margin-left: auto; }
+  .ai-status { display: none; margin-top: 12px; font-size: 13px; color: var(--muted); }
+  .ai-status.show { display: block; }
+  .ai-bar { height: 4px; background: var(--border); border-radius: 2px; overflow: hidden; margin-top: 6px; }
+  .ai-bar div { height: 100%; width: 0; background: linear-gradient(90deg, var(--accent), #8c5aff); }
+  .ai-graph { display: none; width: 100%; height: 60px; margin-top: 10px; border-radius: 6px; background: var(--panel-2); }
+  .ai-graph.show { display: block; }
+  .clip .ai-tag { font-size: 10px; color: #c6a8ff; margin-left: 4px; font-weight: 600; }
+
+  /* Video erstellen */
+  .make-box { display: flex; flex-direction: column; gap: 10px; padding-top: 12px; border-top: 1px solid var(--border); }
+  .make-box .opt input[type="text"], .make-box .opt select {
+    background: var(--panel-2); border: 1px solid var(--border); border-radius: 6px; padding: 6px 8px; color: var(--text); width: 100%;
+  }
+  .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .row2 > .opt { min-width: 0; }
+  .make-box .opt select { min-width: 0; }
+  .make-progress.show { display: block; }
 
   @media (max-width: 900px) {
     #editor.active { grid-template-columns: 1fr; }
@@ -258,13 +288,82 @@
           </select>
         </label>
       </div>
+
+      <div class="ai-box">
+        <div class="ai-head">
+          <span class="ai-badge">✨ KI-Schnitt</span>
+          <span class="ai-sub">Analysiert Bild und Ton und schneidet automatisch</span>
+        </div>
+        <div class="options ai-opts">
+          <label class="opt">Was soll die KI machen?
+            <select id="aiMode">
+              <option value="highlights">Highlights finden (spannendste Stellen)</option>
+              <option value="silence">Pausen &amp; Stille rausschneiden</option>
+              <option value="scenes">In Szenen aufteilen</option>
+            </select>
+          </label>
+          <label class="opt" id="aiLenWrap">Clip-Länge
+            <select id="aiLen">
+              <option value="10">ca. 10 s</option>
+              <option value="15" selected>ca. 15 s</option>
+              <option value="30">ca. 30 s</option>
+              <option value="60">ca. 60 s</option>
+            </select>
+          </label>
+          <label class="opt" id="aiCountWrap">Anzahl Clips
+            <select id="aiCount">
+              <option value="1">1</option>
+              <option value="3" selected>3</option>
+              <option value="5">5</option>
+              <option value="10">10</option>
+            </select>
+          </label>
+          <button class="btn primary ai-run" id="aiRunBtn">✨ Automatisch schneiden</button>
+        </div>
+        <div class="ai-status" id="aiStatus">
+          <div class="ai-status-text" id="aiStatusText"></div>
+          <div class="ai-bar"><div id="aiBar"></div></div>
+        </div>
+        <canvas id="aiGraph" class="ai-graph" height="60" aria-label="Spannungskurve des Videos"></canvas>
+      </div>
     </div>
 
     <aside class="panel sidebar">
       <h3>Clips <span class="count" id="clipCount">0</span></h3>
       <ul id="clipList"></ul>
-      <div class="empty" id="emptyMsg">Noch keine Clips.<br>Bereich auf der Timeline wählen und <b>＋ Clip</b> klicken.</div>
-      <button class="btn primary" id="exportAllBtn" disabled>⬇ Alle exportieren</button>
+      <div class="empty" id="emptyMsg">Noch keine Clips.<br>Bereich auf der Timeline wählen und <b>＋ Clip</b> klicken – oder die KI schneiden lassen.</div>
+      <button class="btn" id="exportAllBtn" disabled>⬇ Alle einzeln exportieren</button>
+
+      <div class="make-box">
+        <h3>🎬 Video erstellen</h3>
+        <p class="hint" style="margin:0">Fügt alle Clips in der Reihenfolge der Liste zu einem Video zusammen.</p>
+        <label class="opt">Titel / Text im Video (optional)
+          <input type="text" id="ovText" maxlength="80" placeholder="z. B. Mein bester Moment 🔥">
+        </label>
+        <div class="row2">
+          <label class="opt">Position
+            <select id="ovPos">
+              <option value="top">Oben</option>
+              <option value="center">Mitte</option>
+              <option value="bottom" selected>Unten</option>
+            </select>
+          </label>
+          <label class="opt">Anzeigen
+            <select id="ovWhen">
+              <option value="intro">Erste 3 s</option>
+              <option value="all">Ganzes Video</option>
+            </select>
+          </label>
+        </div>
+        <label class="opt">Übergang
+          <select id="fade">
+            <option value="0">Harter Schnitt</option>
+            <option value="1" selected>Kurze Abblende</option>
+          </select>
+        </label>
+        <div class="progress make-progress" id="makeProgress"><div></div></div>
+        <button class="btn primary" id="makeBtn" disabled>🎬 Video erstellen</button>
+      </div>
       <div class="hint">
         <kbd>Leertaste</kbd> Play/Pause · <kbd>I</kbd> Start · <kbd>O</kbd> Ende · <kbd>C</kbd> Clip ·
         <kbd>P</kbd> Auswahl abspielen · <kbd>←</kbd><kbd>→</kbd> 1 s (mit <kbd>Shift</kbd> 0,1 s)
@@ -283,7 +382,7 @@
   const state = {
     url: null, fileName: 'video', duration: 0,
     start: 0, end: 0, clips: [], selectedClip: null,
-    previewEnd: null, exporting: false, nextId: 1,
+    previewEnd: null, exporting: false, analyzing: false, nextId: 1, file: null, analysis: null,
   };
 
   // ---------- Helpers ----------
@@ -332,18 +431,20 @@
     if (f) loadFile(f); else toast('Bitte eine Videodatei ablegen.');
   });
   $('newVideoBtn').addEventListener('click', () => {
-    if (state.exporting) return toast('Bitte warten, bis der Export fertig ist.');
+    if (state.exporting || state.analyzing) return toast('Bitte warten, bis der Vorgang fertig ist.');
     if (state.clips.length && !confirm('Neues Video laden? Die aktuelle Clip-Liste geht verloren.')) return;
     fileInput.value = '';
     fileInput.click();
   });
 
   function loadFile(file) {
-    if (state.exporting) return toast('Bitte warten, bis der Export fertig ist.');
+    if (state.exporting || state.analyzing) return toast('Bitte warten, bis der Vorgang fertig ist.');
     if (state.url) URL.revokeObjectURL(state.url);
     state.url = URL.createObjectURL(file);
     state.fileName = file.name.replace(/\.[^.]+$/, '') || 'video';
     state.clips = []; state.selectedClip = null; state.nextId = 1;
+    state.file = file; state.analysis = null;
+    $("aiStatus").classList.remove("show"); $("aiGraph").classList.remove("show");
     renderClips();
     video.src = state.url;
     video.addEventListener('loadedmetadata', onMeta, { once: true });
@@ -563,9 +664,11 @@
     $('clipCount').textContent = state.clips.length;
     $('emptyMsg').style.display = state.clips.length ? 'none' : '';
     $('exportAllBtn').disabled = !state.clips.length || state.exporting;
+    $('makeBtn').disabled = !state.clips.length || state.exporting;
+    $('aiRunBtn').disabled = state.exporting || state.analyzing;
     const markers = $('clipMarkers');
     markers.innerHTML = '';
-    state.clips.forEach((clip) => {
+    state.clips.forEach((clip, idx) => {
       const m = document.createElement('span');
       m.style.left = pct(clip.start) + '%';
       m.style.width = pct(clip.end - clip.start) + '%';
@@ -578,12 +681,14 @@
         <img alt="" ${clip.thumb ? `src="${clip.thumb}"` : ''}>
         <div>
           <input class="clip-name" value="" maxlength="60" aria-label="Clip-Name">
-          <div class="clip-meta">${fmt(clip.start)} – ${fmt(clip.end)}<br>Länge ${fmt(clip.end - clip.start)}</div>
+          <div class="clip-meta">${fmt(clip.start)} – ${fmt(clip.end)}${clip.ai ? '<span class="ai-tag">✨ KI</span>' : ''}<br>Länge ${fmt(clip.end - clip.start)}</div>
         </div>
         <div class="clip-actions">
           <button class="btn small" data-act="play" title="Abspielen">▶</button>
-          <button class="btn small primary" data-act="export" ${state.exporting ? 'disabled' : ''}>⬇ Export</button>
-          <button class="btn small" data-act="delete" title="Löschen" ${clip.exporting ? 'disabled' : ''}>🗑</button>
+          <button class="btn small" data-act="up" title="Nach oben" ${idx === 0 || state.exporting ? 'disabled' : ''}>↑</button>
+          <button class="btn small" data-act="down" title="Nach unten" ${idx === state.clips.length - 1 || state.exporting ? 'disabled' : ''}>↓</button>
+          <button class="btn small primary" data-act="export" ${state.exporting ? 'disabled' : ''}>⬇</button>
+          <button class="btn small" data-act="delete" title="Löschen" ${state.exporting ? 'disabled' : ''}>🗑</button>
         </div>
         <div class="progress"><div style="width:${(clip.progress || 0) * 100}%"></div></div>`;
       const nameEl = li.querySelector('.clip-name');
@@ -591,10 +696,17 @@
       nameEl.addEventListener('click', (e) => e.stopPropagation());
       nameEl.addEventListener('input', () => { clip.name = nameEl.value; });
       li.addEventListener('click', (e) => {
-        const act = e.target.closest('[data-act]')?.dataset.act;
+        const btn = e.target.closest('[data-act]');
+        if (btn?.disabled) return;
+        const act = btn?.dataset.act;
         if (act === 'delete') {
           state.clips = state.clips.filter((c) => c !== clip);
           if (state.selectedClip === clip.id) state.selectedClip = null;
+          return renderClips();
+        }
+        if (act === 'up' || act === 'down') {
+          const j = idx + (act === 'up' ? -1 : 1);
+          [state.clips[idx], state.clips[j]] = [state.clips[j], state.clips[idx]];
           return renderClips();
         }
         state.selectedClip = clip.id;
@@ -609,6 +721,249 @@
     });
   }
 
+  // ---------- KI-Schnitt: Analyse von Bild (Bewegung, Szenenwechsel) und Ton (Lautstärke, Stille) ----------
+  const percentile = (arr, p) => {
+    if (!arr.length) return 0;
+    const s = Float64Array.from(arr).sort();
+    return s[Math.min(s.length - 1, Math.max(0, Math.floor(p * (s.length - 1))))];
+  };
+  const normalize = (arr) => {
+    const lo = percentile(arr, 0.05), hi = percentile(arr, 0.98);
+    return arr.map((x) => (hi - lo < 1e-9 ? 0 : clamp((x - lo) / (hi - lo), 0, 1)));
+  };
+  const smooth = (arr, r) => arr.map((_, i) => {
+    let s = 0, n = 0;
+    for (let j = Math.max(0, i - r); j <= Math.min(arr.length - 1, i + r); j++) { s += arr[j]; n++; }
+    return s / n;
+  });
+  function setAiStatus(text, p) {
+    $('aiStatus').classList.add('show');
+    $('aiStatusText').textContent = text;
+    if (p != null) $('aiBar').style.width = p * 100 + '%';
+  }
+
+  async function analyzeAudio() {
+    // Ton dekodieren (bei sehr großen Dateien überspringen, um den Speicher zu schonen)
+    if (!state.file || state.file.size > 500 * 1024 * 1024) return null;
+    try {
+      const buf = await state.file.arrayBuffer();
+      const AC = window.OfflineAudioContext || window.webkitOfflineAudioContext;
+      const ac = new AC(1, 44100, 44100);
+      const audio = await ac.decodeAudioData(buf);
+      const step = 0.05, sr = audio.sampleRate, win = Math.floor(sr * step);
+      const chans = [];
+      for (let c = 0; c < audio.numberOfChannels; c++) chans.push(audio.getChannelData(c));
+      const n = Math.floor(audio.length / win);
+      const db = new Float64Array(n);
+      for (let i = 0; i < n; i++) {
+        let sum = 0;
+        for (const ch of chans) for (let k = i * win; k < (i + 1) * win; k += 2) sum += ch[k] * ch[k];
+        const rms = Math.sqrt(sum / (chans.length * win / 2));
+        db[i] = 20 * Math.log10(rms + 1e-6);
+      }
+      return { step, db: Array.from(db) };
+    } catch (e) {
+      console.warn('Ton konnte nicht analysiert werden', e);
+      return null;
+    }
+  }
+
+  async function analyzeVideo(onProgress) {
+    const step = Math.max(0.25, state.duration / 700);
+    const v = document.createElement('video');
+    v.muted = true; v.preload = 'auto'; v.src = state.url;
+    await once(v, 'loadeddata');
+    const c = document.createElement('canvas');
+    c.width = 64; c.height = 36;
+    const ctx = c.getContext('2d', { willReadFrequently: true });
+    const times = [], diff = [];
+    let prev = null;
+    for (let t = 0; t < state.duration; t += step) {
+      await seek(v, Math.min(t, state.duration - 0.01));
+      ctx.drawImage(v, 0, 0, c.width, c.height);
+      const d = ctx.getImageData(0, 0, c.width, c.height).data;
+      const gray = new Float32Array(c.width * c.height);
+      for (let i = 0; i < gray.length; i++) gray[i] = 0.299 * d[i * 4] + 0.587 * d[i * 4 + 1] + 0.114 * d[i * 4 + 2];
+      let s = 0;
+      if (prev) for (let i = 0; i < gray.length; i++) s += Math.abs(gray[i] - prev[i]);
+      diff.push(prev ? s / gray.length : 0);
+      times.push(t);
+      prev = gray;
+      onProgress(t / state.duration);
+    }
+    v.removeAttribute('src'); v.load();
+    // Szenenwechsel = plötzlicher Sprung, deutlich über der Umgebung
+    const cuts = [];
+    for (let i = 1; i < diff.length; i++) {
+      const local = diff.slice(Math.max(1, i - 8), i + 9).filter((_, k, a) => a[k] !== diff[i]);
+      const med = percentile(local.length ? local : [0], 0.5);
+      if (diff[i] > 22 && diff[i] > med * 3 + 6) {
+        if (!cuts.length || times[i] - cuts[cuts.length - 1] > 1) cuts.push(times[i]);
+      }
+    }
+    return { step, times, diff, cuts };
+  }
+
+  async function analyze() {
+    if (state.analysis) return state.analysis;
+    setAiStatus('🎧 Ton wird analysiert …', 0.02);
+    const audio = await analyzeAudio();
+    setAiStatus('👁 Bild wird analysiert (Bewegung & Szenenwechsel) …', 0.1);
+    const vis = await analyzeVideo((p) => setAiStatus(`👁 Bild wird analysiert … ${Math.round(p * 100)} %`, 0.1 + p * 0.85));
+    // Ton auf das Raster der Bildanalyse bringen
+    let loud = null;
+    if (audio) {
+      loud = vis.times.map((t) => {
+        const a = Math.floor(t / audio.step), b = Math.max(a + 1, Math.floor((t + vis.step) / audio.step));
+        let m = -120;
+        for (let i = a; i < b && i < audio.db.length; i++) m = Math.max(m, audio.db[i]);
+        return m;
+      });
+    }
+    const motionN = normalize(smooth(vis.diff.map((d, i) => (vis.cuts.includes(vis.times[i]) ? 0 : d)), 1));
+    const loudN = loud ? normalize(loud) : null;
+    const score = smooth(motionN.map((m, i) => (loudN ? 0.6 * loudN[i] + 0.4 * m : m)), 2);
+    state.analysis = { ...vis, audio, score };
+    return state.analysis;
+  }
+
+  function drawGraph(an, picks) {
+    const cv = $('aiGraph');
+    cv.classList.add('show');
+    const dpr = window.devicePixelRatio || 1;
+    const w = cv.clientWidth, h = 60;
+    cv.width = w * dpr; cv.height = h * dpr;
+    const g = cv.getContext('2d');
+    g.scale(dpr, dpr);
+    g.clearRect(0, 0, w, h);
+    const x = (t) => (t / state.duration) * w;
+    g.fillStyle = 'rgba(61,220,151,.22)';
+    picks.forEach((p) => g.fillRect(x(p.start), 0, Math.max(2, x(p.end) - x(p.start)), h));
+    g.beginPath();
+    an.score.forEach((s, i) => { const px = x(an.times[i]), py = h - 4 - s * (h - 10); i ? g.lineTo(px, py) : g.moveTo(px, py); });
+    g.strokeStyle = '#ff4d6d'; g.lineWidth = 1.5; g.stroke();
+    g.fillStyle = 'rgba(255,255,255,.5)';
+    an.cuts.forEach((t) => g.fillRect(x(t), 0, 1, 6));
+  }
+
+  function pickHighlights(an, len, count) {
+    const { times, score, step, cuts } = an;
+    if (state.duration <= len + 0.5) return [{ start: 0, end: state.duration }];
+    const L = Math.max(1, Math.round(len / step));
+    const sums = [];
+    for (let i = 0; i + L <= score.length; i++) {
+      let s = 0;
+      for (let k = i; k < i + L; k++) s += score[k];
+      sums.push({ i, s });
+    }
+    sums.sort((a, b) => b.s - a.s);
+    const picks = [];
+    for (const cand of sums) {
+      if (picks.length >= count) break;
+      let start = times[cand.i];
+      // An einem Szenenwechsel kurz davor beginnen, falls vorhanden
+      const cut = cuts.find((c) => c >= start - 2 && c <= start + 1.5);
+      if (cut != null) start = cut;
+      start = clamp(start, 0, state.duration - len);
+      const end = Math.min(state.duration, start + len);
+      if (picks.some((p) => start < p.end + 0.5 && end > p.start - 0.5)) continue;
+      picks.push({ start, end, s: cand.s });
+    }
+    return picks.sort((a, b) => a.start - b.start);
+  }
+
+  function pickSpeech(an) {
+    const a = an.audio;
+    const floor = percentile(a.db, 0.1), peak = percentile(a.db, 0.95);
+    if (peak - floor < 6) return null; // kaum Unterschied → keine erkennbare Stille
+    const thresh = floor + 0.28 * (peak - floor);
+    const segs = [];
+    let cur = null;
+    a.db.forEach((d, i) => {
+      const t = i * a.step;
+      if (d > thresh) { if (!cur) cur = { start: t, end: t + a.step }; else cur.end = t + a.step; }
+      else if (cur && t - cur.end > 0.45) { segs.push(cur); cur = null; }
+    });
+    if (cur) segs.push(cur);
+    return segs
+      .map((s) => ({ start: Math.max(0, s.start - 0.15), end: Math.min(state.duration, s.end + 0.2) }))
+      .filter((s) => s.end - s.start >= 0.4)
+      .reduce((out, s) => {
+        const last = out[out.length - 1];
+        if (last && s.start <= last.end + 0.05) last.end = Math.max(last.end, s.end); else out.push(s);
+        return out;
+      }, []);
+  }
+
+  function pickScenes(an) {
+    const bounds = [0, ...an.cuts, state.duration];
+    const segs = [];
+    for (let i = 0; i < bounds.length - 1; i++) {
+      const s = { start: bounds[i], end: bounds[i + 1] };
+      if (segs.length && s.end - s.start < 1.5) segs[segs.length - 1].end = s.end;
+      else segs.push(s);
+    }
+    return segs;
+  }
+
+  async function runAi() {
+    if (!state.duration || state.exporting || state.analyzing) return;
+    state.analyzing = true;
+    video.pause();
+    renderClips();
+    try {
+      const an = await analyze();
+      const mode = $('aiMode').value;
+      let picks, label;
+      if (mode === 'highlights') {
+        picks = pickHighlights(an, Number($('aiLen').value), Number($('aiCount').value));
+        label = 'Highlight';
+      } else if (mode === 'silence') {
+        if (!an.audio) throw new Error('Dieses Video hat keinen erkennbaren Ton.');
+        picks = pickSpeech(an);
+        if (!picks || !picks.length) throw new Error('Keine Stille gefunden – das Video ist durchgehend laut.');
+        label = 'Teil';
+      } else {
+        picks = pickScenes(an);
+        label = 'Szene';
+        if (picks.length < 2) toast('Keine klaren Szenenwechsel gefunden.');
+      }
+      picks = picks.slice(0, 60);
+      drawGraph(an, picks);
+      state.clips = state.clips.filter((c) => !c.ai);
+      const newClips = picks.map((p, i) => ({
+        id: state.nextId++, name: `KI ${label} ${i + 1}`, start: p.start, end: p.end, thumb: '', ai: true,
+      }));
+      state.clips.push(...newClips);
+      renderClips();
+      let msg = `✨ ${newClips.length} ${label === 'Teil' ? 'Teile' : label === 'Szene' ? 'Szenen' : 'Highlights'} gefunden.`;
+      if (mode === 'silence') {
+        const kept = newClips.reduce((s, c) => s + c.end - c.start, 0);
+        msg += ` ${fmt(state.duration - kept)} Stille entfernt – mit 🎬 Video erstellen zusammenfügen.`;
+      }
+      setAiStatus(msg, 1);
+      toast(msg);
+      for (const c of newClips) {
+        if (!state.clips.includes(c)) break;
+        c.thumb = await snapshot(c.start);
+        renderClips();
+      }
+    } catch (err) {
+      console.error(err);
+      setAiStatus('⚠ ' + (err.message || err), 0);
+      toast(err.message || String(err));
+    } finally {
+      state.analyzing = false;
+      renderClips();
+    }
+  }
+  $('aiRunBtn').addEventListener('click', runAi);
+  $('aiMode').addEventListener('change', () => {
+    const hl = $('aiMode').value === 'highlights';
+    $('aiLenWrap').style.display = hl ? '' : 'none';
+    $('aiCountWrap').style.display = hl ? '' : 'none';
+  });
+
   // ---------- Export (Canvas + MediaRecorder, läuft komplett lokal) ----------
   function pickMime() {
     const types = [
@@ -617,9 +972,17 @@
     ];
     return types.find((t) => window.MediaRecorder && MediaRecorder.isTypeSupported(t)) || '';
   }
+  const safeName = (s) => String(s).replace(/[\\/:*?"<>|]+/g, '_').trim() || 'clip';
+  function download(blob, name) {
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = name;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 60000);
+  }
 
   async function exportClips(clips) {
-    if (state.exporting) return;
+    if (state.exporting || state.analyzing) return;
     if (!window.MediaRecorder) return toast('Dein Browser unterstützt keinen Video-Export.');
     state.exporting = true;
     video.pause();
@@ -627,8 +990,17 @@
     try {
       for (const clip of clips) {
         clip.exporting = true; clip.progress = 0; renderClips();
-        try { await exportOne(clip); toast(`✔ ${clip.name} exportiert`); }
-        catch (err) { console.error(err); toast(`Export fehlgeschlagen: ${err.message || err}`); }
+        try {
+          const { blob, ext } = await record([clip], {
+            onProgress: (p) => {
+              clip.progress = p;
+              const bar = clip.el?.querySelector('.progress div');
+              if (bar) bar.style.width = p * 100 + '%';
+            },
+          });
+          download(blob, `${safeName(state.fileName)} - ${safeName(clip.name)}.${ext}`);
+          toast(`✔ ${clip.name} exportiert`);
+        } catch (err) { console.error(err); toast(`Export fehlgeschlagen: ${err.message || err}`); }
         clip.exporting = false; renderClips();
       }
     } finally {
@@ -638,7 +1010,63 @@
   }
   $('exportAllBtn').addEventListener('click', () => exportClips(state.clips.slice()));
 
-  async function exportOne(clip) {
+  async function makeVideo() {
+    if (state.exporting || state.analyzing || !state.clips.length) return;
+    if (!window.MediaRecorder) return toast('Dein Browser unterstützt keinen Video-Export.');
+    state.exporting = true;
+    video.pause();
+    renderClips();
+    const bar = $('makeProgress');
+    bar.classList.add('show');
+    const fill = bar.querySelector('div');
+    const btn = $('makeBtn');
+    try {
+      const { blob, ext } = await record(state.clips.slice(), {
+        overlay: { text: $('ovText').value.trim(), pos: $('ovPos').value, when: $('ovWhen').value },
+        fade: $('fade').value === '1',
+        onProgress: (p) => { fill.style.width = p * 100 + '%'; btn.textContent = `⏳ Erstelle Video … ${Math.round(p * 100)} %`; },
+      });
+      download(blob, `${safeName(state.fileName)} - Mein Video.${ext}`);
+      toast('🎬 Dein Video ist fertig!');
+    } catch (err) {
+      console.error(err);
+      toast(`Erstellen fehlgeschlagen: ${err.message || err}`);
+    } finally {
+      state.exporting = false;
+      btn.textContent = '🎬 Video erstellen';
+      bar.classList.remove('show'); fill.style.width = '0';
+      renderClips();
+    }
+  }
+  $('makeBtn').addEventListener('click', makeVideo);
+
+  function drawOverlay(ctx, text, pos, w, h) {
+    const size = Math.round(Math.min(w, h) * 0.075);
+    ctx.save();
+    ctx.font = `800 ${size}px system-ui, -apple-system, "Segoe UI", Roboto, sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    // Zeilenumbruch, falls der Text zu breit ist
+    const words = text.split(/\s+/), lines = [];
+    let line = '';
+    for (const wd of words) {
+      const test = line ? line + ' ' + wd : wd;
+      if (ctx.measureText(test).width > w * 0.88 && line) { lines.push(line); line = wd; } else line = test;
+    }
+    lines.push(line);
+    const lh = size * 1.2;
+    const total = lines.length * lh;
+    let y = pos === 'top' ? h * 0.1 + lh / 2 : pos === 'center' ? h / 2 - total / 2 + lh / 2 : h * 0.9 - total + lh / 2;
+    ctx.lineJoin = 'round';
+    ctx.lineWidth = Math.max(3, size * 0.16);
+    ctx.strokeStyle = 'rgba(0,0,0,.85)';
+    ctx.fillStyle = '#fff';
+    for (const l of lines) { ctx.strokeText(l, w / 2, y); ctx.fillText(l, w / 2, y); y += lh; }
+    ctx.restore();
+  }
+
+  // Nimmt eine oder mehrere Zeitspannen nacheinander in EINE Videodatei auf
+  async function record(segments, { onProgress = () => {}, overlay = null, fade = false } = {}) {
     const mime = pickMime();
     const withAudio = $('audio').value === '1';
     const v = document.createElement('video');
@@ -650,29 +1078,43 @@
 
     const vw = v.videoWidth, vh = v.videoHeight;
     const r = cropRect(vw, vh);
-    // gerade Abmessungen für Encoder
-    const cw = r.sw - (r.sw % 2), ch = r.sh - (r.sh % 2);
+    const cw = r.sw - (r.sw % 2), ch = r.sh - (r.sh % 2); // gerade Abmessungen für Encoder
     const canvas = document.createElement('canvas');
     canvas.width = cw; canvas.height = ch;
     const ctx = canvas.getContext('2d');
     const stream = canvas.captureStream(30);
 
-    let audioCtx = null;
+    let audioCtx = null, gain = null;
     if (withAudio) {
       try {
         audioCtx = new (window.AudioContext || window.webkitAudioContext)();
         const src = audioCtx.createMediaElementSource(v);
+        gain = audioCtx.createGain();
         const dest = audioCtx.createMediaStreamDestination();
-        src.connect(dest);
+        src.connect(gain).connect(dest);
         dest.stream.getAudioTracks().forEach((t) => stream.addTrack(t));
         if (audioCtx.state === 'suspended') await audioCtx.resume();
-      } catch (e) { console.warn('Audio nicht verfügbar', e); }
+      } catch (e) { console.warn('Audio nicht verfügbar', e); gain = null; }
     } else {
       v.muted = true;
     }
 
-    await seek(v, clip.start);
-    ctx.drawImage(v, r.sx, r.sy, r.sw, r.sh, 0, 0, cw, ch);
+    const total = segments.reduce((s, c) => s + (c.end - c.start), 0);
+    const FADE = 0.3;
+    let doneBefore = 0;
+    const paint = (seg) => {
+      ctx.drawImage(v, r.sx, r.sy, r.sw, r.sh, 0, 0, cw, ch);
+      const local = v.currentTime - seg.start;
+      const elapsed = doneBefore + Math.max(0, local);
+      if (fade && segments.length > 1) {
+        const edge = Math.min(local, seg.end - v.currentTime);
+        const a = edge < FADE ? 1 - Math.max(0, edge) / FADE : 0;
+        if (a > 0) { ctx.fillStyle = `rgba(0,0,0,${a})`; ctx.fillRect(0, 0, cw, ch); }
+        if (gain) gain.gain.value = 1 - a;
+      }
+      if (overlay?.text && (overlay.when === 'all' || elapsed < 3)) drawOverlay(ctx, overlay.text, overlay.pos, cw, ch);
+      onProgress(clamp(elapsed / total, 0, 1));
+    };
 
     const rec = new MediaRecorder(stream, {
       mimeType: mime || undefined,
@@ -683,47 +1125,45 @@
     rec.ondataavailable = (e) => e.data.size && chunks.push(e.data);
     const stopped = once(rec, 'stop');
 
-    const len = clip.end - clip.start;
-    let done = false;
-    const finish = () => {
-      if (done) return; done = true;
-      v.pause();
+    const playSegment = (seg) => new Promise((resolve) => {
+      let fin = false;
+      const end = () => {
+        if (fin) return; fin = true;
+        v.pause(); clearInterval(guard); v.removeEventListener('ended', end);
+        resolve();
+      };
+      const draw = () => {
+        if (fin) return;
+        paint(seg);
+        if (v.currentTime >= seg.end || v.ended) return end();
+        if (v.requestVideoFrameCallback) v.requestVideoFrameCallback(draw); else requestAnimationFrame(draw);
+      };
+      v.addEventListener('ended', end);
+      // Sicherheitsnetz, falls Frames im Hintergrund-Tab ausbleiben
+      const guard = setInterval(() => { if (v.currentTime >= seg.end || v.ended) end(); }, 100);
+      v.play().then(draw, (e) => { console.error(e); end(); });
+    });
+
+    try {
+      for (let i = 0; i < segments.length; i++) {
+        const seg = segments[i];
+        if (rec.state === 'recording') rec.pause(); // während des Springens nichts aufnehmen
+        await seek(v, seg.start);
+        paint(seg);
+        if (rec.state === 'inactive') rec.start(1000); else rec.resume();
+        await playSegment(seg);
+        doneBefore += seg.end - seg.start;
+      }
+    } finally {
       if (rec.state !== 'inactive') rec.stop();
-    };
-    const draw = () => {
-      if (done) return;
-      ctx.drawImage(v, r.sx, r.sy, r.sw, r.sh, 0, 0, cw, ch);
-      const p = clamp((v.currentTime - clip.start) / len, 0, 1);
-      clip.progress = p;
-      const bar = clip.el?.querySelector('.progress div');
-      if (bar) bar.style.width = p * 100 + '%';
-      if (v.currentTime >= clip.end || v.ended) return finish();
-      if (v.requestVideoFrameCallback) v.requestVideoFrameCallback(draw);
-      else requestAnimationFrame(draw);
-    };
-    v.addEventListener('ended', finish, { once: true });
-    // Sicherheitsnetz, falls Frames im Hintergrund-Tab ausbleiben
-    const guard = setInterval(() => { if (v.currentTime >= clip.end || v.ended) finish(); }, 100);
-
-    rec.start(1000);
-    await v.play();
-    draw();
-    await stopped;
-    clearInterval(guard);
-
-    stream.getTracks().forEach((t) => t.stop());
-    if (audioCtx) audioCtx.close();
-    v.removeAttribute('src'); v.load(); v.remove();
-
+      await stopped;
+      stream.getTracks().forEach((t) => t.stop());
+      if (audioCtx) audioCtx.close();
+      v.removeAttribute('src'); v.load(); v.remove();
+    }
+    onProgress(1);
     const type = rec.mimeType || mime || 'video/webm';
-    const ext = type.includes('mp4') ? 'mp4' : 'webm';
-    const blob = new Blob(chunks, { type });
-    const safe = (s) => s.replace(/[\\/:*?"<>|]+/g, '_').trim() || 'clip';
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
-    a.download = `${safe(state.fileName)} - ${safe(clip.name)}.${ext}`;
-    document.body.appendChild(a); a.click(); a.remove();
-    setTimeout(() => URL.revokeObjectURL(a.href), 60000);
+    return { blob: new Blob(chunks, { type }), ext: type.includes('mp4') ? 'mp4' : 'webm' };
   }
 
   // ---------- Keyboard ----------
